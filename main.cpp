@@ -202,24 +202,7 @@ int main(int argc, char* argv[]) {
 
   uint8_t* scanline = static_cast<uint8_t*>(::malloc(w));
   for (i = 0; i < h; i++) {
-    const B2DRefRas::Cell* cell = &ras._cells[(h - i - 1) * ras._stride];
-    int cover = 0;
-
-    for (int x = 0; x < w; x++) {
-      cover += cell[x].cover;
-
-      int alpha = cover - (cell[x].area >> B2DRefRas::kA8Shift_2);
-      if (nonZero) {
-        if (alpha < 0) alpha = -alpha;
-        if (alpha > 255) alpha = 255;
-      }
-      else {
-        alpha = alpha & 0x1FF;
-        if (alpha >= 256) alpha = 511 - alpha;
-      }
-      scanline[x] = static_cast<uint8_t>(alpha & 0xFF);
-    }
-
+    ras.sweepScanline((h - i - 1), nonZero, scanline);
     fwrite(scanline, w, 1, f);
   }
   ::free(scanline);

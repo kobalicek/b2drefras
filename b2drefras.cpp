@@ -576,3 +576,23 @@ _Horz_After:
     return;
   }
 }
+
+void B2DRefRas::sweepScanline(int y, bool nonZero, uint8_t* buffer) {
+  int cover = 0;
+  const Cell* cell = &_cells[y * _stride];
+
+  for (int x = 0; x < _width; x++) {
+    cover += cell[x].cover;
+
+    int alpha = cover - (cell[x].area >> B2DRefRas::kA8Shift_2);
+    if (nonZero) {
+      if (alpha < 0) alpha = -alpha;
+      if (alpha > 255) alpha = 255;
+    }
+    else {
+      alpha = alpha & 0x1FF;
+      if (alpha >= 256) alpha = 511 - alpha;
+    }
+    buffer[x] = static_cast<uint8_t>(alpha & 0xFF);
+  }
+}

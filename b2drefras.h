@@ -48,6 +48,8 @@ public:
     cell.area  += area;
   }
 
+  void sweepScanline(int y, bool nonZero, uint8_t* buffer);
+
   int _width;
   int _height;
   intptr_t _stride;
