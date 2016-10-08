@@ -1,3 +1,4 @@
+// Blend2D Reference Rasterizer - Public Domain
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>

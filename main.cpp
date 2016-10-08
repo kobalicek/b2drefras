@@ -1,3 +1,4 @@
+// Blend2D Reference Rasterizer - Public Domain
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -118,7 +119,7 @@ int main(int argc, char* argv[]) {
 
   int w = cmd.getInt("--width");
   int h = cmd.getInt("--height");
-  bool nonZero = true;
+  bool nonZero = !cmd.hasKey("--even-odd");
   const char* fileName = cmd.getKey("--output");
 
   // Rasterize the polygon.
