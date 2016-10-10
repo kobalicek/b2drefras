@@ -51,6 +51,9 @@ public:
 
   void sweepScanline(int y, bool nonZero, uint8_t* buffer) const;
 
+  template<bool NonZero>
+  inline void sweepScanlineImpl(int y, uint8_t* buffer) const;
+
   int _width;
   int _height;
   intptr_t _stride;

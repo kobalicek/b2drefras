@@ -7,6 +7,7 @@
 template<typename T> inline T tAbs(T a) { return a >= 0 ? a : -a; }
 template<typename T> inline T tMin(T a, T b) { return a < b ? a : b; }
 template<typename T> inline T tMax(T a, T b) { return a > b ? a : b; }
+template<typename T> inline void tSwap(T& a, T& b) { T t = a; a = b; b = t; }
 
 B2DRefRas::B2DRefRas()
   : _width(0),
@@ -280,11 +281,8 @@ void B2DRefRas::_renderLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) {
   //   - swap coordinates,
   //   - invert cover-sign.
   if (x0 > x1) {
-    int tx, ty;
-
-    tx = x0; x0 = x1; x1 = tx;
-    ty = y0; y0 = y1; y1 = ty;
-
+    tSwap(x0, x1);
+    tSwap(y0, y1);
     coverSign = -coverSign;
   }
 
@@ -292,10 +290,8 @@ void B2DRefRas::_renderLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) {
   //   - invert fractional parts of y0 and y1,
   //   - invert cover-sign.
   if (y0 > y1) {
-    static const int norm[2] = { 1, 1 - kA8Scale * 2};
-
     y0 ^= kA8Mask;
-    y0 += norm[int(y0 & kA8Mask) == kA8Mask];
+    y0 += int(y0 & kA8Mask) == kA8Mask ? 1 - kA8Scale * 2 : 1;
     y1  = y0 + dy;
 
     yInc = -1;
@@ -390,14 +386,14 @@ void B2DRefRas::_renderLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) {
   if (dy >= dx) {
     int yAcc = int(y0) + int(yDlt);
 
-    goto _Vert_Skip;
+    goto VertSkip;
     for (;;) {
       do {
         xDlt = xLift;
         xErr += xRem;
         if (xErr >= 0) { xErr -= dy; xDlt++; }
 
-_Vert_Skip:
+VertSkip:
         area = fx0;
         fx0 += int(xDlt);
 
@@ -409,7 +405,7 @@ _Vert_Skip:
           if (fx0 == 256) {
             ex0++;
             fx0 = 0;
-            goto _Vert_Advance;
+            goto VertAdvance;
           }
         }
         else {
@@ -426,7 +422,7 @@ _Vert_Skip:
           area  = fx0 * cover;
           _mergeCell(ex0, ey0, cover, area);
 
-_Vert_Advance:
+VertAdvance:
           yAcc += int(yLift);
           yErr += yRem;
           if (yErr >= 0) { yErr -= dx; yAcc++; }
@@ -451,7 +447,7 @@ _Vert_Advance:
         fy1 = int(y1 & kA8Mask);
 
         xDlt = x1 - (ex0 << 8) - fx0;
-        goto _Vert_Skip;
+        goto VertSkip;
       }
     }
 
@@ -469,14 +465,14 @@ _Vert_Advance:
       fy1 = kA8Scale;
 
     if (fx0 + int(xDlt) > 256)
-      goto _Horz_Inside;
+      goto HorzInside;
 
     x0 += xDlt;
 
     cover = (fy1 - fy0) * coverSign;
     area = (fx0 * 2 + int(xDlt)) * cover;
 
-_Horz_Single:
+HorzSingle:
     _mergeCell(ex0, ey0, cover, area);
 
     ey0 += yInc;
@@ -490,7 +486,7 @@ _Horz_Single:
     }
 
     if (--i == 0)
-      goto _Horz_After;
+      goto HorzAfter;
 
     for (;;) {
       do {
@@ -501,12 +497,12 @@ _Horz_Single:
         ex0 = int(x0 >> kA8Shift);
         fx0 = int(x0 & kA8Mask);
 
-_Horz_Skip:
+HorzSkip:
         coverAcc -= 256;
         cover = coverAcc;
         assert(cover >= 0 && cover <= 256);
 
-_Horz_Inside:
+HorzInside:
         x0 += xDlt;
 
         ex1 = int(x0 >> kA8Shift);
@@ -548,7 +544,7 @@ _Horz_Inside:
       if (ey0 == ey1)
         break;
 
-_Horz_After:
+HorzAfter:
       i = j;
       j = 1;
 
@@ -566,10 +562,10 @@ _Horz_After:
         if (fx0 + int(xDlt) <= 256) {
           cover = fy1 * coverSign;
           area = (fx0 * 2 + int(xDlt)) * cover;
-          goto _Horz_Single;
+          goto HorzSingle;
         }
         else {
-          goto _Horz_Skip;
+          goto HorzSkip;
         }
       }
     }
@@ -578,13 +574,20 @@ _Horz_After:
   }
 }
 
+void B2DRefRas::sweepScanline(int y, bool nonZero, uint8_t* buffer) const {
+  if (nonZero)
+    sweepScanlineImpl<true>(y, buffer);
+  else
+    sweepScanlineImpl<false>(y, buffer);
+}
+
 // Templatized for people benchmarking the code.
 template<bool NonZero>
-void B2DRefRas_sweepScanline(const B2DRefRas* self, int y, uint8_t* buffer) {
-  const B2DRefRas::Cell* cell = &self->_cells[y * self->_stride];
+inline void B2DRefRas::sweepScanlineImpl(int y, uint8_t* buffer) const {
+  const B2DRefRas::Cell* cell = &_cells[y * _stride];
 
   int x;
-  int w = self->_width;
+  int w = _width;
   int cover = 0;
 
   for (x = 0; x < w; x++) {
@@ -601,11 +604,4 @@ void B2DRefRas_sweepScanline(const B2DRefRas* self, int y, uint8_t* buffer) {
     }
     buffer[x] = static_cast<uint8_t>(alpha & 0xFF);
   }
-}
-
-void B2DRefRas::sweepScanline(int y, bool nonZero, uint8_t* buffer) const {
-  if (nonZero)
-    B2DRefRas_sweepScanline<true>(this, y, buffer);
-  else
-    B2DRefRas_sweepScanline<false>(this, y, buffer);
 }
