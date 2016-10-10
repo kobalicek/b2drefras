@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
      !cmd.hasKey("--width") ||
      !cmd.hasKey("--height") ||
      !cmd.hasKey("--output")) {
-    printf("Usage: aggrefras_test --width=W --height=H --output=file.bmp X Y X Y X Y [...]\n");
+    printf("Usage: b2drefras --width=W --height=H --output=file.bmp X Y X Y X Y [...]\n");
     return 1;
   }
 
@@ -196,7 +196,7 @@ int main(int argc, char* argv[]) {
   FILE* f = fopen(fileName, "wb");
   if (!f) {
     printf("Cannot open file '%s' for write\n", fileName);
-    return 0;
+    return 1;
   }
 
   fwrite(&bmp.signature, sizeof(BmpFile) - 2, 1, f);
