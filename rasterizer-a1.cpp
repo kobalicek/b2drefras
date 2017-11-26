@@ -1,27 +1,25 @@
-/*
-// Blend2D Reference Rasterizer - Public Domain
-#include <stdlib.h>
+#include "./rasterizer-a1.h"
+
 #include <string.h>
+#include <stdlib.h>
 
-#include "./b2drefras.h"
+RasterizerA1::RasterizerA1() noexcept :
+  Rasterizer(),
+  _stride(0),
+  _cells(NULL) {}
 
-template<typename T> inline T tAbs(T a) { return a >= 0 ? a : -a; }
-
-B2DRefRas::B2DRefRas()
-  : _width(0),
-    _height(0),
-    _stride(0),
-    _cells(NULL) {}
-
-B2DRefRas::~B2DRefRas() {
-  if (_cells)
-    ::free(_cells);
+RasterizerA1::~RasterizerA1() noexcept {
+  reset();
 }
 
-bool B2DRefRas::init(int w, int h) {
+const char* RasterizerA1::name() const noexcept {
+  return "A1";
+}
+
+bool RasterizerA1::init(int w, int h) noexcept {
   if (_width != w || _height != h) {
     if (_cells)
-      ::free(_cells);
+      std::free(_cells);
 
     _width = w;
     _height = h;
@@ -35,7 +33,7 @@ bool B2DRefRas::init(int w, int h) {
     _stride = w + 1;
 
     size_t size = h * _stride * sizeof(Cell);
-    _cells = static_cast<Cell*>(::malloc(size));
+    _cells = static_cast<Cell*>(std::malloc(size));
 
     if (!_cells) {
       _width = 0;
@@ -47,216 +45,54 @@ bool B2DRefRas::init(int w, int h) {
 
   if (_cells) {
     size_t size = h * _stride * sizeof(Cell);
-    ::memset(_cells, 0, size);
+    std::memset(_cells, 0, size);
   }
 
   return true;
 }
 
-void B2DRefRas::addLine(int x0, int y0, int x1, int y1) {
-  assert(isInitialized());
-  if (x0 != x1 || y0 != y1)
-    _renderLine<int64_t>(x0, y0, x1, y1);
+void RasterizerA1::reset() noexcept {
+  if (isInitialized()) {
+    std::free(_cells);
+    _width = 0;
+    _height = 0;
+    _stride = 0;
+    _cells = NULL;
+  }
 }
 
-void B2DRefRas::addQuad(int x0, int y0, int x1, int y1, int x2, int y2) {
+void RasterizerA1::clear() noexcept {
+  if (isInitialized()) {
+    size_t size = _height * _stride * sizeof(Cell);
+    std::memset(_cells, 0, size);
+  }
+}
+
+bool RasterizerA1::addPoly(const Point* poly, size_t count) noexcept {
   assert(isInitialized());
 
-  Point curveStack[32 * 3 + 1];
-  Point* curve = curveStack;
+  if (count < 2)
+    return true;
 
-  curve[0].x = x2;
-  curve[0].y = y2;
-  curve[1].x = x1;
-  curve[1].y = y1;
-  curve[2].x = x0;
-  curve[2].y = y0;
+  int x0 = static_cast<int>(poly[0].x * 256);
+  int y0 = static_cast<int>(poly[0].y * 256);
 
-  int levelStack[32];
-  int level = 0;
-  int top = 0;
+  for (size_t i = 1; i < count; i++) {
+    int x1 = static_cast<int>(poly[i].x * 256);
+    int y1 = static_cast<int>(poly[i].y * 256);
 
-  int d = std::max(tAbs(curve[2].x + curve[0].x - 2 * curve[1].x),
-                   tAbs(curve[2].y + curve[0].y - 2 * curve[1].y));
-
-  while (d > (kA8Scale / 6)) {
-    d >>= 2;
-    level++;
-  }
-
-  levelStack[0] = level;
-  top = 0;
-
-  do {
-    level = levelStack[top];
-    if (level > 1) {
-      int a, b;
-
-      curve[4].x = curve[2].x;
-      b = curve[1].x;
-      a = curve[3].x = (curve[2].x + b) / 2;
-      b = curve[1].x = (curve[0].x + b) / 2;
-      curve[2].x = (a + b) / 2;
-
-      curve[4].y = curve[2].y;
-      b = curve[1].y;
-      a = curve[3].y = (curve[2].y + b) / 2;
-      b = curve[1].y = (curve[0].y + b) / 2;
-      curve[2].y = (a + b) / 2;
-
-      curve += 2;
-      top++;
-      levelStack[top] = levelStack[top - 1] = level - 1;
-      continue;
-    }
-
-    x1 = curve[0].x;
-    y1 = curve[0].y;
-
-    addLine(x0, y0, x1, y1);
+    if (x0 != x1 || y0 != y1)
+      _addLine<int64_t>(x0, y0, x1, y1);
 
     x0 = x1;
     y0 = y1;
-
-    top--;
-    curve -= 2;
-  } while (top >= 0);
-}
-
-void B2DRefRas::addCubic(int x0, int y0, int x1, int y1, int x2, int y2, int x3, int y3) {
-  assert(isInitialized());
-
-  Point curveStack[32 * 3 + 1];
-  Point* curve = curveStack;
-  Point* curveEnd = curve + 31 * 3;
-
-  curve[0].x = x3;
-  curve[0].y = y3;
-  curve[1].x = x2;
-  curve[1].y = y2;
-  curve[2].x = x1;
-  curve[2].y = y1;
-  curve[3].x = x0;
-  curve[3].y = y0;
-
-  for (;;) {
-    // See "Rapid Termination. Evaluation for Recursive Subdivision of Bezier Curves".
-    if (curve != curveEnd) {
-      int dx , dy ;
-      int dx_, dy_;
-      int dx1, dy1;
-      int dx2, dy2;
-      int L, s, limit;
-
-      // dx and dy are x and y components of the P0-P3 chord vector.
-      dx = curve[3].x - curve[0].x;
-      dy = curve[3].y - curve[0].y;
-
-      // L is an (under)estimate of the Euclidean distance P0-P3.
-      //
-      // If dx >= dy, then r = sqrt(dx^2 + dy^2) can be overestimated
-      // with least maximum error by
-      //
-      //   r_upperbound = dx + (sqrt(2) - 1) * dy,
-      //
-      // where sqrt(2) - 1 can be (over)estimated by 107/256, giving an
-      // error of no more than 8.4%.
-      //
-      // Similarly, some elementary calculus shows that r can be
-      // underestimated with least maximum error by
-      //
-      //   r_lowerbound = sqrt(2 + sqrt(2)) / 2 * dx
-      //                + sqrt(2 - sqrt(2)) / 2 * dy .
-      //
-      // 236/256 and 97/256 are (under)estimates of the two algebraic
-      // numbers, giving an error of no more than 8.1%.
-      dx_ = tAbs(dx);
-      dy_ = tAbs(dy);
-
-      // This is the same as:
-      //
-      //   L = (236 * max( dx_, dy_ ) + 97 * min( dx_, dy_ )) >> 8;
-      L = ((dx_ > dy_) ? (236 * dx_ + 97 * dy_) : ( 97 * dx_ + 236 * dy_)) >> 8;
-
-      // Avoid possible arithmetic overflow below by splitting.
-      if (L > 32767)
-        goto _Split;
-
-      // Max deviation may be as much as (s/L) * 3/4 (if Hain's v = 1).
-      limit = L * (int)(kA8Scale / 6);
-
-      // s is L * the perpendicular distance from P1 to the line P0-P3.
-      dx1 = curve[1].x - curve[0].x;
-      dy1 = curve[1].y - curve[0].y;
-      s = tAbs(dy * dx1 - dx * dy1);
-
-      if (s > limit)
-        goto _Split;
-
-      // s is L * the perpendicular distance from P2 to the line P0-P3.
-      dx2 = curve[2].x - curve[0].x;
-      dy2 = curve[2].y - curve[0].y;
-      s = tAbs(dy * dx2 - dx * dy2);
-
-      if (s > limit)
-        goto _Split;
-
-      // If P1 or P2 is outside P0-P3, split the curve.
-      if ((dy * dy1 + dx * dx1 < 0) ||
-          (dy * dy2 + dx * dx2 < 0) ||
-          (dy * (curve[3].y - curve[1].y) + dx * (curve[3].x - curve[1].x) < 0) ||
-          (dy * (curve[3].y - curve[2].y) + dx * (curve[3].x - curve[2].x) < 0))
-        goto _Split;
-    }
-
-    {
-      x1 = curve[0].x;
-      y1 = curve[0].y;
-
-      addLine(x0, y0, x1, y1);
-
-      x0 = x1;
-      y0 = y1;
-
-      if (curve == curveStack)
-        break;
-
-      curve -= 3;
-      continue;
-    }
-
-_Split:
-    {
-      int a, b, c, d;
-
-      curve[6].x = curve[3].x;
-      c = curve[1].x;
-      d = curve[2].x;
-      curve[1].x = a = ( curve[0].x + c ) / 2;
-      curve[5].x = b = ( curve[3].x + d ) / 2;
-      c = ( c + d ) / 2;
-      curve[2].x = a = ( a + c ) / 2;
-      curve[4].x = b = ( b + c ) / 2;
-      curve[3].x = ( a + b ) / 2;
-
-      curve[6].y = curve[3].y;
-      c = curve[1].y;
-      d = curve[2].y;
-      curve[1].y = a = ( curve[0].y + c ) / 2;
-      curve[5].y = b = ( curve[3].y + d ) / 2;
-      c = ( c + d ) / 2;
-      curve[2].y = a = ( a + c ) / 2;
-      curve[4].y = b = ( b + c ) / 2;
-      curve[3].y = ( a + b ) / 2;
-    }
-
-    curve += 3;
-    continue;
   }
+
+  return true;
 }
 
 template<typename Fixed>
-void B2DRefRas::_renderLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) {
+void RasterizerA1::_addLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) noexcept {
   Fixed dx = x1 - x0;
   Fixed dy = y1 - y0;
 
@@ -569,35 +405,48 @@ HorzAfter:
   }
 }
 
-void B2DRefRas::sweepScanline(int y, bool nonZero, uint8_t* buffer) const {
-  if (nonZero)
-    sweepScanlineImpl<true>(y, buffer);
-  else
-    sweepScanlineImpl<false>(y, buffer);
-}
-
-// Templatized for people benchmarking the code.
 template<bool NonZero>
-inline void B2DRefRas::sweepScanlineImpl(int y, uint8_t* buffer) const {
-  const B2DRefRas::Cell* cell = &_cells[y * _stride];
+inline void RasterizerA1::_renderImpl(Image& dst, uint32_t argb32) noexcept {
+  uint8_t* dstLine = dst.data();
+  intptr_t stride = dst.stride();
+  uint32_t prgb32 = PixelUtils::premultiply(argb32);
 
-  int x;
   int w = _width;
-  int cover = 0;
+  int h = _height;
 
-  for (x = 0; x < w; x++) {
-    cover += cell[x].cover;
+  for (int y = 0; y < h; y++, dstLine += stride) {
+    uint32_t* dstPix = reinterpret_cast<uint32_t*>(dstLine);
+    const Cell* cell = &_cells[y * _stride];
 
-    int alpha = cover - (cell[x].area >> B2DRefRas::kA8Shift_2);
-    if (NonZero) {
-      if (alpha < 0) alpha = -alpha;
-      if (alpha > 255) alpha = 255;
+    int cover = 0;
+    for (int x = 0; x < w; x++) {
+      cover += cell[x].cover;
+
+      int mask = cover - (cell[x].area >> kA8Shift_2);
+      if (NonZero) {
+        if (mask < 0) mask = -mask;
+        if (mask > 255) mask = 255;
+      }
+      else {
+        mask = mask & 0x1FF;
+        if (mask > 255) mask = 511 - mask;
+      }
+
+      if (!mask)
+        continue;
+
+      if (mask == 255)
+        dstPix[x] = prgb32;
+      else
+        dstPix[x] = PixelUtils::src(dstPix[x], prgb32, uint32_t(mask));
     }
-    else {
-      alpha = alpha & 0x1FF;
-      if (alpha >= 256) alpha = 511 - alpha;
-    }
-    buffer[x] = static_cast<uint8_t>(alpha & 0xFF);
   }
 }
-*/
+
+bool RasterizerA1::render(Image& dst, uint32_t argb32) noexcept {
+  if (_nonZero)
+    _renderImpl<true>(dst, argb32);
+  else
+    _renderImpl<false>(dst, argb32);
+  return true;
+}

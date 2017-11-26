@@ -1,4 +1,8 @@
 // Blend2D Reference Rasterizer - Public Domain
+/*
+#ifndef _B2DREFRAS_H
+#define _B2DREFRAS_H
+
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -59,3 +63,6 @@ public:
   intptr_t _stride;
   Cell* _cells;
 };
+
+#endif // _B2DREFRAS_H
+*/
