@@ -1,17 +1,30 @@
-#ifndef _RASTERIZER_A2_H
-#define _RASTERIZER_A2_H
+#ifndef _RASTERIZER_A3_H
+#define _RASTERIZER_A3_H
 
 #include "./rasterizer.h"
+#include "./intutils.h"
 
-class RasterizerA2 : public CellRasterizer {
+class RasterizerA3 : public CellRasterizer {
 public:
+
+  typedef IntUtils::BitWord BitWord;
+  static constexpr uint32_t kBitWordBits = IntUtils::kBitWordBits;
+
+  static constexpr uint32_t kPixelsPerOneBit = 16;
+  static constexpr uint32_t kPixelsPerBitWord = kPixelsPerOneBit * kBitWordBits;
+
   struct Cell {
+    inline void reset() noexcept {
+      cover = 0;
+      area = 0;
+    };
+
     int32_t cover;
     int32_t area;
   };
 
-  RasterizerA2() noexcept;
-  virtual ~RasterizerA2() noexcept;
+  RasterizerA3() noexcept;
+  virtual ~RasterizerA3() noexcept;
 
   virtual const char* name() const noexcept override;
   virtual bool init(int w, int h) noexcept override;
@@ -36,10 +49,13 @@ public:
 
   virtual bool render(Image& dst, uint32_t argb32) noexcept override;
 
+  Bounds _yBounds;
+
+  size_t _bitStride;
+  BitWord* _bits;
+
   size_t _cellStride;
   Cell* _cells;
-  Bounds* _xBounds;
-  Bounds _yBounds;
 };
 
-#endif // _RASTERIZER_A2_H
+#endif // _RASTERIZER_A3_H

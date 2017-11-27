@@ -1,5 +1,6 @@
-#include "./base.h"
+#include "./globals.h"
 #include "./performance.h"
+#include "./rasterizer.h"
 
 // ============================================================================
 // [Main]
@@ -12,17 +13,17 @@ struct BenchParams {
 
 int main(int argc, char* argv[]) {
   static const BenchParams benchParams[] = {
-    { 32, 32 },
-    { 64, 64 },
-    { 128, 128 },
-    { 256, 256 },
-    { 512, 512 },
-    { 1024, 768 },
+    { 32  , 32   },
+    { 64  , 64   },
+    { 128 , 128  },
+    { 256 , 256  },
+    { 512 , 512  },
+    { 1024, 768  },
     { 1920, 1080 },
     { 3840, 2160 }
   };
 
-  uint32_t quantity = 200;
+  uint32_t quantity = 400;
   uint32_t numPoints = 10;
 
   for (uint32_t benchId = 0; benchId < uint32_t(ARRAY_SIZE(benchParams)); benchId++) {
@@ -62,7 +63,7 @@ int main(int argc, char* argv[]) {
       perf.end();
 
       char fileName[128];
-      std::snprintf(fileName, ARRAY_SIZE(fileName), "Bench_%dx%d-%s.bmp", image.width(), image.height(), ras->name());
+      std::snprintf(fileName, ARRAY_SIZE(fileName), "Bench_%04dx%04d-%s.bmp", image.width(), image.height(), ras->name());
       delete ras;
 
       if (!image.writeBmp(fileName)) {

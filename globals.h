@@ -1,5 +1,5 @@
-#ifndef _BASE_H
-#define _BASE_H
+#ifndef _GLOBALS_H
+#define _GLOBALS_H
 
 #include <assert.h>
 #include <stddef.h>
@@ -12,14 +12,57 @@
 #include <cstring>
 #include <limits>
 
+#ifdef _MSC_VER
+  #include <intrin.h>
+#endif
+
 // ============================================================================
 // [Globals]
 // ============================================================================
 
 #define ARRAY_SIZE(X) (sizeof(X) / sizeof(X[0]))
 
+// Function attributes.
+#if defined(__GNUC__)
+  #define ALWAYS_INLINE inline __attribute__((always_inline))
+#elif defined(_MSC_VER)
+  #define ALWAYS_INLINE __forceinline
+#else
+  #define ALWAYS_INLINE inline
+#endif
+
+// ============================================================================
+// [Point]
+// ============================================================================
+
 struct Point { double x, y; };
 struct PointFx { int x, y; };
+
+// ============================================================================
+// [Bounds]
+// ============================================================================
+
+struct Bounds {
+  inline void reset() noexcept {
+    start = std::numeric_limits<int>::max();
+    end = 0;
+  }
+
+  inline bool empty() const noexcept {
+    return end == 0;
+  }
+
+  inline void mergeStart(int x) noexcept { start = std::min(start, x); }
+  inline void mergeEnd(int x) noexcept { end = std::max(end, x); }
+
+  inline void union_(int a, int b) noexcept {
+    mergeStart(a);
+    mergeEnd(b);
+  }
+
+  int start;
+  int end;
+};
 
 // ============================================================================
 // [Random]
@@ -304,6 +347,8 @@ public:
       uint32_t* p = reinterpret_cast<uint32_t*>(scanline);
       for (size_t i = 0; i < width; i++)
         p[i] = prgb32;
+
+      scanline += _stride;
       y0++;
     }
   }
@@ -328,39 +373,4 @@ public:
   uint8_t* _data;
 };
 
-// ============================================================================
-// [Rasterizer]
-// ============================================================================
-
-class Rasterizer {
-public:
-  // Rasterizer ID.
-  enum Id : uint32_t {
-    kIdA1 = 0,
-    kIdA2,
-    kIdCount
-  };
-  static Rasterizer* newById(uint32_t id);
-
-  Rasterizer() noexcept;
-  virtual ~Rasterizer() noexcept;
-
-  virtual const char* name() const noexcept = 0;
-
-  virtual bool init(int w, int h) noexcept = 0;
-  virtual void reset() noexcept = 0;
-
-  virtual void clear() noexcept = 0;
-  virtual bool addPoly(const Point* poly, size_t count) noexcept = 0;
-  virtual bool render(Image& dst, uint32_t argb32) noexcept = 0;
-
-  inline bool isInitialized() const noexcept { return _width != 0; }
-  inline int width() const noexcept { return _width; }
-  inline int height() const noexcept { return _height; }
-
-  int _width;
-  int _height;
-  bool _nonZero;
-};
-
-#endif // _BASE_H
+#endif // _GLOBALS_H

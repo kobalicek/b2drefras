@@ -3,14 +3,17 @@ project(b2drefras CXX)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(SRCS
-  base.h
-  base.cpp
+  globals.h
   performance.h
   performance.cpp
+  rasterizer.cpp
+  rasterizer.h
   rasterizer-a1.cpp
   rasterizer-a1.h
   rasterizer-a2.cpp
   rasterizer-a2.h
+  rasterizer-a3.cpp
+  rasterizer-a3.h
 )
 
 add_executable(render_bench render_bench.cpp ${SRCS})

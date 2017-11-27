@@ -1,23 +1,10 @@
 #ifndef _RASTERIZER_A1_H
 #define _RASTERIZER_A1_H
 
-#include "./base.h"
+#include "./rasterizer.h"
 
-class RasterizerA1 : public Rasterizer {
+class RasterizerA1 : public CellRasterizer {
 public:
-  enum Alpha {
-    kA8Shift    = 8,              // 8-bit alpha.
-    kA8Shift_2  = kA8Shift + 1,
-
-    kA8Scale    = 1 << kA8Shift,  // 256.
-    kA8Mask     = kA8Scale - 1,   // 255.
-
-    kA8Scale_2  = kA8Scale * 2,   // 512.
-    kA8Mask_2   = kA8Scale_2 - 1, // 511.
-
-    kA8MaxI32   = static_cast<int>((1U << 31) / static_cast<unsigned int>(kA8Scale_2))
-  };
-
   struct Cell {
     int32_t cover;
     int32_t area;
@@ -39,7 +26,7 @@ public:
     assert(x >= 0 && x < _width);
     assert(y >= 0 && y < _height);
 
-    Cell& cell = _cells[y * _stride + x];
+    Cell& cell = _cells[y * _cellStride + x];
     cell.cover += cover;
     cell.area  += area;
   }
@@ -49,7 +36,7 @@ public:
 
   virtual bool render(Image& dst, uint32_t argb32) noexcept override;
 
-  intptr_t _stride;
+  size_t _cellStride;
   Cell* _cells;
 };
 

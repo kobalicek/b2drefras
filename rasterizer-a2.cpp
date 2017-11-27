@@ -1,14 +1,11 @@
 #include "./rasterizer-a2.h"
 
-#include <string.h>
-#include <stdlib.h>
-
-RasterizerA2::RasterizerA2() noexcept :
-  Rasterizer(),
-  _cellStride(0),
-  _yBounds { 0, 0 },
-  _xBounds(nullptr),
-  _cells(nullptr) {}
+RasterizerA2::RasterizerA2() noexcept
+  : CellRasterizer(),
+    _cellStride(0),
+    _cells(nullptr),
+    _xBounds(nullptr),
+    _yBounds { 0, 0 } {}
 
 RasterizerA2::~RasterizerA2() noexcept {
   reset();
@@ -28,9 +25,9 @@ bool RasterizerA2::init(int w, int h) noexcept {
 
     if (w == 0 || h == 0) {
       _cellStride = 0;
-      _yBounds.reset();
-      _xBounds = nullptr;
       _cells = nullptr;
+      _xBounds = nullptr;
+      _yBounds.reset();
       return true;
     }
 
@@ -45,17 +42,17 @@ bool RasterizerA2::init(int w, int h) noexcept {
       _width = 0;
       _height = 0;
       _cellStride = 0;
-      _yBounds.reset();
-      _xBounds = nullptr;
       _cells = nullptr;
+      _xBounds = nullptr;
+      _yBounds.reset();
       return false;
     }
 
     size_t size = _height * _cellStride * sizeof(Cell);
     std::memset(_cells, 0, size);
-    _yBounds.reset();
     for (int y = 0; y < _height; y++)
       _xBounds[y].reset();
+    _yBounds.reset();
   }
   else {
     // This is much faster, will only clear the affected area.
@@ -73,9 +70,9 @@ void RasterizerA2::reset() noexcept {
     _width = 0;
     _height = 0;
     _cellStride = 0;
-    _yBounds.reset();
-    _xBounds = nullptr;
     _cells = nullptr;
+    _xBounds = nullptr;
+    _yBounds.reset();
   }
 }
 
@@ -185,8 +182,8 @@ void RasterizerA2::_addLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) noexcept {
 
   // Single-Cell.
   if ((j | ((fx0 + int(dx)) > 256)) == 0) {
-    _yBounds.union_(ey0, ey0);
     _xBounds[ey0].union_(ex0, ex0);
+    _yBounds.union_(ey0, ey0);
     _mergeCell(ex0, ey0, cover, (fx0 * 2 + int(dx)) * cover);
     return;
   }
@@ -469,22 +466,13 @@ inline void RasterizerA2::_renderImpl(Image& dst, uint32_t argb32) noexcept {
     uint32_t* dstPix = reinterpret_cast<uint32_t*>(dstLine);
     const Cell* cell = &_cells[y0 * _cellStride];
 
-    int cover = 0;
     int x = _xBounds[y0].start;
     int xEnd = std::min(_xBounds[y0].end + 1, _width);
+    int cover = 0;
 
     while (x < xEnd) {
       cover += cell[x].cover;
-      int mask = cover - (cell[x].area >> kA8Shift_2);
-
-      if (NonZero) {
-        if (mask < 0) mask = -mask;
-        if (mask > 255) mask = 255;
-      }
-      else {
-        mask = mask & 0x1FF;
-        if (mask > 255) mask = 511 - mask;
-      }
+      uint32_t mask = calcMask<NonZero>(cover - (cell[x].area >> kA8Shift_2));
 
       x++;
       if (!mask)

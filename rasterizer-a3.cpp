@@ -1,71 +1,134 @@
-#include "./rasterizer-a1.h"
+#include "./rasterizer-a3.h"
 
-RasterizerA1::RasterizerA1() noexcept
+RasterizerA3::RasterizerA3() noexcept
   : CellRasterizer(),
+    _yBounds { 0, 0 },
+    _bitStride(0),
+    _bits(nullptr),
     _cellStride(0),
-    _cells(NULL) {}
+    _cells(nullptr) {}
 
-RasterizerA1::~RasterizerA1() noexcept {
+RasterizerA3::~RasterizerA3() noexcept {
   reset();
 }
 
-const char* RasterizerA1::name() const noexcept {
-  return "A1";
+const char* RasterizerA3::name() const noexcept {
+  return "A3";
 }
 
-bool RasterizerA1::init(int w, int h) noexcept {
+bool RasterizerA3::init(int w, int h) noexcept {
   if (_width != w || _height != h) {
-    if (_cells)
-      std::free(_cells);
+    if (_bits) std::free(_bits);
+    if (_cells) std::free(_cells);
 
     _width = w;
     _height = h;
 
     if (w == 0 || h == 0) {
+      _yBounds.reset();
+      _bitStride = 0;
+      _bits = nullptr;
       _cellStride = 0;
-      _cells = NULL;
+      _cells = nullptr;
       return true;
     }
 
+    _bitStride = IntUtils::nBitWordsForNBits((size_t(w) + 1 + kPixelsPerBitWord - 1) / kPixelsPerBitWord);
+    _bits = static_cast<BitWord*>(std::malloc(h * _bitStride * sizeof(BitWord)));
+
     _cellStride = w + 1;
+    _cells = static_cast<Cell*>(std::malloc(h * _cellStride * sizeof(Cell)));
 
-    size_t size = h * _cellStride * sizeof(Cell);
-    _cells = static_cast<Cell*>(std::malloc(size));
+    if (!_bits || !_cells) {
+      if (_bits) std::free(_bits);
+      if (_cells) std::free(_cells);
 
-    if (!_cells) {
       _width = 0;
       _height = 0;
+      _yBounds.reset();
+
+      _bitStride = 0;
+      _bits = nullptr;
       _cellStride = 0;
+      _cells = nullptr;
+
       return false;
     }
-  }
 
-  if (_cells) {
-    size_t size = h * _cellStride * sizeof(Cell);
-    std::memset(_cells, 0, size);
+    _yBounds.reset();
+
+    std::memset(_cells, 0, _height * _cellStride * sizeof(Cell));
+    std::memset(_bits, 0, _height * _bitStride * sizeof(BitWord));
+  }
+  else {
+    // This is much faster, will only clear the affected area.
+    clear();
   }
 
   return true;
 }
 
-void RasterizerA1::reset() noexcept {
+void RasterizerA3::reset() noexcept {
   if (isInitialized()) {
+    std::free(_bits);
     std::free(_cells);
+
     _width = 0;
     _height = 0;
+    _yBounds.reset();
+
+    _bitStride = 0;
+    _bits = nullptr;
+
     _cellStride = 0;
-    _cells = NULL;
+    _cells = nullptr;
   }
 }
 
-void RasterizerA1::clear() noexcept {
+void RasterizerA3::clear() noexcept {
   if (isInitialized()) {
-    size_t size = _height * _cellStride * sizeof(Cell);
-    std::memset(_cells, 0, size);
+    size_t y0 = size_t(_yBounds.start);
+    size_t y1 = size_t(_yBounds.end);
+
+    BitWord* bitPtr = _bits + y0 * _bitStride;
+    Cell* cellPtr = _cells + y0 * _cellStride;
+
+    while (y0 <= y1) {
+      size_t i = size_t(_bitStride);
+      size_t x = 0;
+
+      do {
+        IntUtils::BitWordFlipIterator<BitWord> it(*bitPtr);
+        *bitPtr = 0;
+
+        if (it.hasNext()) {
+          size_t xEnd = std::min<size_t>(_width, x + kPixelsPerBitWord);
+          do {
+            size_t x0 = x + it.nextAndFlip() * kPixelsPerOneBit;
+            size_t x1;
+
+            if (it.hasNext())
+              x1 = std::min<size_t>(xEnd, x + it.nextAndFlip() * kPixelsPerOneBit);
+            else
+              x1 = std::min<size_t>(xEnd, x0 + kPixelsPerOneBit);
+
+            std::memset(cellPtr + x0, 0, (x1 - x0) * sizeof(Cell));
+          } while (it.hasNext());
+        }
+
+        x += kPixelsPerBitWord;
+        bitPtr++;
+      } while (--i);
+
+      cellPtr += _cellStride;
+      y0++;
+    }
+
+    _yBounds.reset();
   }
 }
 
-bool RasterizerA1::addPoly(const Point* poly, size_t count) noexcept {
+bool RasterizerA3::addPoly(const Point* poly, size_t count) noexcept {
   assert(isInitialized());
 
   if (count < 2)
@@ -89,7 +152,7 @@ bool RasterizerA1::addPoly(const Point* poly, size_t count) noexcept {
 }
 
 template<typename Fixed>
-void RasterizerA1::_addLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) noexcept {
+void RasterizerA3::_addLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) noexcept {
   Fixed dx = x1 - x0;
   Fixed dy = y1 - y0;
 
@@ -147,11 +210,18 @@ void RasterizerA1::_addLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) noexcept {
 
   // Single-Cell.
   if ((j | ((fx0 + int(dx)) > 256)) == 0) {
+    _yBounds.union_(ey0, ey0);
+    IntUtils::bitVectorSetBit(&_bits[ey0 * _bitStride], ex0 / kPixelsPerOneBit, true);
+
     _mergeCell(ex0, ey0, cover, (fx0 * 2 + int(dx)) * cover);
     return;
   }
 
   uint32_t ey1 = ey0 + (j + (fy1 != 0)) * yInc;
+  if (ey0 <= ey1)
+    _yBounds.union_(ey0, ey1);
+  else
+    _yBounds.union_(ey1, ey0);
 
   // Strictly horizontal line (always one cell per scanline).
   if (dx == 0) {
@@ -162,9 +232,14 @@ void RasterizerA1::_addLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) noexcept {
     fy1 *= coverSign;
     fx0 *= 2;
 
+    size_t bitIndex = ex0 / kPixelsPerOneBit;
+    BitWord* bitBase = _bits + (bitIndex / kBitWordBits);
+    BitWord bitMask = BitWord(1) << (bitIndex % kBitWordBits);
+
     for (;;) {
       area = fx0 * cover;
       do {
+        bitBase[ey0 * _bitStride] |= bitMask;
         _mergeCell(ex0, ey0, cover, area);
         ey0 += yInc;
       } while (--i);
@@ -228,6 +303,8 @@ VertSkip:
         if (fx0 <= 256) {
           cover = (fy1 - fy0) * coverSign;
           area  = (area + fx0) * cover;
+
+          IntUtils::bitVectorSetBit(&_bits[ey0 * _bitStride], ex0 / kPixelsPerOneBit, true);
           _mergeCell(ex0, ey0, cover, area);
 
           if (fx0 == 256) {
@@ -243,11 +320,13 @@ VertSkip:
           cover = (yAcc - fy0) * coverSign;
           area  = (area + kA8Scale) * cover;
 
+          IntUtils::bitVectorSetBit(&_bits[ey0 * _bitStride], ex0 / kPixelsPerOneBit, true);
           _mergeCell(ex0, ey0, cover, area);
           ex0++;
 
           cover = (fy1 - yAcc) * coverSign;
           area  = fx0 * cover;
+          IntUtils::bitVectorSetBit(&_bits[ey0 * _bitStride], ex0 / kPixelsPerOneBit, true);
           _mergeCell(ex0, ey0, cover, area);
 
 VertAdvance:
@@ -301,6 +380,7 @@ VertAdvance:
     area = (fx0 * 2 + int(xDlt)) * cover;
 
 HorzSingle:
+    IntUtils::bitVectorSetBit(&_bits[ey0 * _bitStride], ex0 / kPixelsPerOneBit, true);
     _mergeCell(ex0, ey0, cover, area);
 
     ey0 += yInc;
@@ -343,6 +423,8 @@ HorzInside:
           ex1++;
 
         area = (fx0 + kA8Scale) * cover;
+        IntUtils::bitVectorFill(&_bits[ey0 * _bitStride], ex0 / kPixelsPerOneBit, (ex1 / kPixelsPerOneBit) - (ex0 / kPixelsPerOneBit) + 1);
+
         while (ex0 != ex1 - 1) {
           _mergeCell(ex0, ey0, cover * coverSign, area * coverSign);
 
@@ -403,33 +485,102 @@ HorzAfter:
 }
 
 template<bool NonZero>
-inline void RasterizerA1::_renderImpl(Image& dst, uint32_t argb32) noexcept {
+inline void RasterizerA3::_renderImpl(Image& dst, uint32_t argb32) noexcept {
   uint8_t* dstLine = dst.data();
-  intptr_t stride = dst.stride();
+  intptr_t dstStride = dst.stride();
   uint32_t prgb32 = PixelUtils::premultiply(argb32);
 
-  int w = _width;
-  int h = _height;
+  size_t y0 = size_t(_yBounds.start);
+  size_t y1 = size_t(_yBounds.end);
 
-  for (int y = 0; y < h; y++, dstLine += stride) {
+  BitWord* bitPtr = _bits + y0 * _bitStride;
+  Cell* cellLine = _cells + y0 * _cellStride;
+
+  dstLine += y0 * dstStride;
+  while (y0 <= y1) {
+    size_t nBits = size_t(_bitStride);
+
+    Cell* cell = cellLine;
     uint32_t* dstPix = reinterpret_cast<uint32_t*>(dstLine);
-    const Cell* cell = &_cells[y * _cellStride];
 
     int cover = 0;
-    for (int x = 0; x < w; x++) {
-      cover += cell[x].cover;
-      uint32_t mask = calcMask<NonZero>(cover - (cell[x].area >> kA8Shift_2));
-      if (!mask) continue;
+    size_t x0 = 0;
+    size_t xOffset = 0;
 
-      if (mask == 255)
-        dstPix[x] = prgb32;
-      else
-        dstPix[x] = PixelUtils::src(dstPix[x], prgb32, uint32_t(mask));
+    do {
+      IntUtils::BitWordFlipIterator<BitWord> it(*bitPtr);
+      *bitPtr = 0;
+
+      while (it.hasNext()) {
+        size_t x1 = xOffset + it.nextAndFlip() * kPixelsPerOneBit;
+        if (x0 < x1) {
+          uint32_t mask = calcMask<NonZero>(cover);
+          if (mask) {
+            if (mask == 255) {
+              while (x0 < x1) {
+                dstPix[x0] = prgb32;
+                x0++;
+              }
+            }
+            else {
+              while (x0 < x1) {
+                dstPix[x0] = PixelUtils::src(dstPix[x0], prgb32, mask);
+                x0++;
+              }
+            }
+          }
+          x0 = x1;
+        }
+
+        if (it.hasNext())
+          x1 = xOffset + it.nextAndFlip() * kPixelsPerOneBit;
+        else
+          x1 = std::min<size_t>(_width, xOffset + kPixelsPerBitWord);
+
+        while (x0 < x1) {
+          cover += cell[x0].cover;
+          uint32_t mask = calcMask<NonZero>(cover - (cell[x0].area >> kA8Shift_2));
+          cell[x0].reset();
+
+          if (mask == 255)
+            dstPix[x0] = prgb32;
+          else
+            dstPix[x0] = PixelUtils::src(dstPix[x0], prgb32, uint32_t(mask));
+          x0++;
+        }
+      }
+
+      xOffset += kPixelsPerBitWord;
+      bitPtr++;
+    } while (--nBits);
+
+    if (x0 < _width) {
+      uint32_t mask = calcMask<NonZero>(cover - (cell[x0].area >> kA8Shift_2));
+      if (mask) {
+        if (mask == 255) {
+          while (x0 < _width) {
+            dstPix[x0] = prgb32;
+            x0++;
+          }
+        }
+        else {
+          while (x0 < _width) {
+            dstPix[x0] = PixelUtils::src(dstPix[x0], prgb32, mask);
+            x0++;
+          }
+        }
+      }
     }
+
+    dstLine += dstStride;
+    cellLine += _cellStride;
+    y0++;
   }
+
+  _yBounds.reset();
 }
 
-bool RasterizerA1::render(Image& dst, uint32_t argb32) noexcept {
+bool RasterizerA3::render(Image& dst, uint32_t argb32) noexcept {
   if (_nonZero)
     _renderImpl<true>(dst, argb32);
   else
