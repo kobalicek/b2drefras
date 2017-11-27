@@ -5,11 +5,6 @@
 
 class RasterizerA2 : public CellRasterizer {
 public:
-  struct Cell {
-    int32_t cover;
-    int32_t area;
-  };
-
   RasterizerA2() noexcept;
   virtual ~RasterizerA2() noexcept;
 

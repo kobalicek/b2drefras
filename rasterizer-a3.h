@@ -6,22 +6,11 @@
 
 class RasterizerA3 : public CellRasterizer {
 public:
-
   typedef IntUtils::BitWord BitWord;
   static constexpr uint32_t kBitWordBits = IntUtils::kBitWordBits;
 
   static constexpr uint32_t kPixelsPerOneBit = 16;
   static constexpr uint32_t kPixelsPerBitWord = kPixelsPerOneBit * kBitWordBits;
-
-  struct Cell {
-    inline void reset() noexcept {
-      cover = 0;
-      area = 0;
-    };
-
-    int32_t cover;
-    int32_t area;
-  };
 
   RasterizerA3() noexcept;
   virtual ~RasterizerA3() noexcept;

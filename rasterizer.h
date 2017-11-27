@@ -61,6 +61,16 @@ public:
     kA8MaxI32   = static_cast<int>((1U << 31) / static_cast<unsigned int>(kA8Scale_2))
   };
 
+  struct Cell {
+    inline void reset() noexcept {
+      cover = 0;
+      area = 0;
+    };
+
+    int32_t cover;
+    int32_t area;
+  };
+
   template<bool NonZero>
   static ALWAYS_INLINE uint32_t calcMask(int m) noexcept {
     if (NonZero) {

@@ -33,7 +33,7 @@ bool RasterizerA3::init(int w, int h) noexcept {
       return true;
     }
 
-    _bitStride = IntUtils::nBitWordsForNBits((size_t(w) + 1 + kPixelsPerBitWord - 1) / kPixelsPerBitWord);
+    _bitStride = IntUtils::nBitWordsForNBits((size_t(w) + 1 + kPixelsPerOneBit - 1) / kPixelsPerOneBit);
     _bits = static_cast<BitWord*>(std::malloc(h * _bitStride * sizeof(BitWord)));
 
     _cellStride = w + 1;
@@ -555,7 +555,7 @@ inline void RasterizerA3::_renderImpl(Image& dst, uint32_t argb32) noexcept {
     } while (--nBits);
 
     if (x0 < _width) {
-      uint32_t mask = calcMask<NonZero>(cover - (cell[x0].area >> kA8Shift_2));
+      uint32_t mask = calcMask<NonZero>(cover);
       if (mask) {
         if (mask == 255) {
           while (x0 < _width) {
