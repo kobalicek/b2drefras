@@ -13,7 +13,10 @@ public:
   enum Id : uint32_t {
     kIdA1 = 0,
     kIdA2,
-    kIdA3,
+    kIdA3x4,
+    kIdA3x8,
+    kIdA3x16,
+    kIdA3x32,
     kIdCount
   };
   static Rasterizer* newById(uint32_t id);
@@ -21,7 +24,7 @@ public:
   Rasterizer() noexcept;
   virtual ~Rasterizer() noexcept;
 
-  virtual const char* name() const noexcept = 0;
+  const char* name() const noexcept { return _name; }
 
   virtual bool init(int w, int h) noexcept = 0;
   virtual void reset() noexcept = 0;
@@ -34,6 +37,7 @@ public:
   inline int width() const noexcept { return _width; }
   inline int height() const noexcept { return _height; }
 
+  char _name[16];
   int _width;
   int _height;
   bool _nonZero;

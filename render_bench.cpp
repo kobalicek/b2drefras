@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
         return 1;
       }
 
-      printf("%s [%u ms]\n", fileName, perf.best);
+      printf("%-26s [%u ms]\n", fileName, perf.best);
     }
   }
 

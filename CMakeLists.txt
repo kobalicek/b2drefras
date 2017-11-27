@@ -6,14 +6,11 @@ set(SRCS
   globals.h
   performance.h
   performance.cpp
-  rasterizer.cpp
   rasterizer.h
+  rasterizer.cpp
   rasterizer-a1.cpp
-  rasterizer-a1.h
   rasterizer-a2.cpp
-  rasterizer-a2.h
   rasterizer-a3.cpp
-  rasterizer-a3.h
 )
 
 add_executable(render_bench render_bench.cpp ${SRCS})

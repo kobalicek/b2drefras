@@ -1,17 +1,58 @@
-#include "./rasterizer-a1.h"
+#include "./rasterizer.h"
+
+// ============================================================================
+// [RasterizerA1]
+// ============================================================================
+
+class RasterizerA1 : public CellRasterizer {
+public:
+  RasterizerA1() noexcept;
+  virtual ~RasterizerA1() noexcept;
+
+  virtual bool init(int w, int h) noexcept override;
+  virtual void reset() noexcept override;
+  virtual void clear() noexcept override;
+  virtual bool addPoly(const Point* poly, size_t count) noexcept override;
+
+  template<typename Fixed>
+  void _addLine(Fixed x0, Fixed y0, Fixed x1, Fixed y1) noexcept;
+
+  inline void _mergeCell(int x, int y, int cover, int area) noexcept{
+    assert(x >= 0 && x < _width);
+    assert(y >= 0 && y < _height);
+
+    Cell& cell = _cells[y * _cellStride + x];
+    cell.cover += cover;
+    cell.area  += area;
+  }
+
+  template<bool NonZero>
+  inline void _renderImpl(Image& dst, uint32_t argb32) noexcept;
+
+  virtual bool render(Image& dst, uint32_t argb32) noexcept override;
+
+  size_t _cellStride;
+  Cell* _cells;
+};
+
+// ============================================================================
+// [RasterizerA1 - Construction / Destruction]
+// ============================================================================
 
 RasterizerA1::RasterizerA1() noexcept
   : CellRasterizer(),
     _cellStride(0),
-    _cells(NULL) {}
+    _cells(nullptr) {
+  std::snprintf(_name, ARRAY_SIZE(_name), "A1");
+}
 
 RasterizerA1::~RasterizerA1() noexcept {
   reset();
 }
 
-const char* RasterizerA1::name() const noexcept {
-  return "A1";
-}
+// ============================================================================
+// [RasterizerA1 - Basics]
+// ============================================================================
 
 bool RasterizerA1::init(int w, int h) noexcept {
   if (_width != w || _height != h) {
@@ -23,7 +64,7 @@ bool RasterizerA1::init(int w, int h) noexcept {
 
     if (w == 0 || h == 0) {
       _cellStride = 0;
-      _cells = NULL;
+      _cells = nullptr;
       return true;
     }
 
@@ -54,7 +95,7 @@ void RasterizerA1::reset() noexcept {
     _width = 0;
     _height = 0;
     _cellStride = 0;
-    _cells = NULL;
+    _cells = nullptr;
   }
 }
 
@@ -64,6 +105,10 @@ void RasterizerA1::clear() noexcept {
     std::memset(_cells, 0, size);
   }
 }
+
+// ============================================================================
+// [RasterizerA1 - AddPoly / AddLine]
+// ============================================================================
 
 bool RasterizerA1::addPoly(const Point* poly, size_t count) noexcept {
   assert(isInitialized());
@@ -402,6 +447,10 @@ HorzAfter:
   }
 }
 
+// ============================================================================
+// [RasterizerA1 - Render]
+// ============================================================================
+
 template<bool NonZero>
 inline void RasterizerA1::_renderImpl(Image& dst, uint32_t argb32) noexcept {
   uint8_t* dstLine = dst.data();
@@ -436,3 +485,9 @@ bool RasterizerA1::render(Image& dst, uint32_t argb32) noexcept {
     _renderImpl<false>(dst, argb32);
   return true;
 }
+
+// ============================================================================
+// [RasterizerA1 - New]
+// ============================================================================
+
+Rasterizer* newRasterizerA1() noexcept { return new(std::nothrow) RasterizerA1(); }

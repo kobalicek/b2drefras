@@ -1,7 +1,4 @@
 #include "./rasterizer.h"
-#include "./rasterizer-a1.h"
-#include "./rasterizer-a2.h"
-#include "./rasterizer-a3.h"
 
 // ============================================================================
 // [Rasterizer]
@@ -13,11 +10,22 @@ Rasterizer::Rasterizer() noexcept
     _nonZero(false) {}
 Rasterizer::~Rasterizer() noexcept {}
 
+// ============================================================================
+// [Rasterizer - NewById]
+// ============================================================================
+
+Rasterizer* newRasterizerA1() noexcept;
+Rasterizer* newRasterizerA2() noexcept;
+Rasterizer* newRasterizerA3(uint32_t pixelsPerOneBit) noexcept;
+
 Rasterizer* Rasterizer::newById(uint32_t id) {
   switch (id) {
-    case kIdA1: return new (std::nothrow) RasterizerA1();
-    case kIdA2: return new (std::nothrow) RasterizerA2();
-    case kIdA3: return new (std::nothrow) RasterizerA3();
+    case kIdA1   : return newRasterizerA1();
+    case kIdA2   : return newRasterizerA2();
+    case kIdA3x4 : return newRasterizerA3(4);
+    case kIdA3x8 : return newRasterizerA3(8);
+    case kIdA3x16: return newRasterizerA3(16);
+    case kIdA3x32: return newRasterizerA3(32);
 
     default:
       return nullptr;
