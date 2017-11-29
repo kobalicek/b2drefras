@@ -1,5 +1,7 @@
-#include "./rasterizer.h"
+#include "./compositor.h"
 #include "./intutils.h"
+#include "./rasterizer.h"
+#include "./simd.h"
 
 // ============================================================================
 // [RasterizerA3]
@@ -557,7 +559,6 @@ template<bool NonZero>
 inline void RasterizerA3<N>::_renderImpl(Image& dst, uint32_t argb32) noexcept {
   uint8_t* dstLine = dst.data();
   intptr_t dstStride = dst.stride();
-  uint32_t prgb32 = PixelUtils::premultiply(argb32);
 
   size_t y0 = size_t(_yBounds.start);
   size_t y1 = size_t(_yBounds.end);
@@ -565,7 +566,9 @@ inline void RasterizerA3<N>::_renderImpl(Image& dst, uint32_t argb32) noexcept {
   BitWord* bitPtr = _bits + y0 * _bitStride;
   Cell* cellLine = _cells + y0 * _cellStride;
 
+  Compositor compositor(argb32);
   dstLine += y0 * dstStride;
+
   while (y0 <= y1) {
     size_t nBits = size_t(_bitStride);
 
@@ -583,21 +586,9 @@ inline void RasterizerA3<N>::_renderImpl(Image& dst, uint32_t argb32) noexcept {
       while (it.hasNext()) {
         size_t x1 = xOffset + it.nextAndFlip() * kPixelsPerOneBit;
         if (x0 < x1) {
-          uint32_t mask = calcMask<NonZero>(cover);
-          if (mask) {
-            if (mask == 255) {
-              while (x0 < x1) {
-                dstPix[x0] = prgb32;
-                x0++;
-              }
-            }
-            else {
-              while (x0 < x1) {
-                dstPix[x0] = PixelUtils::src(dstPix[x0], prgb32, mask);
-                x0++;
-              }
-            }
-          }
+          uint32_t mask = CompositeUtils::calcMask<NonZero>(cover);
+          if (mask)
+            compositor.cmask(dstPix, x0, x1, mask);
           x0 = x1;
         }
 
@@ -606,17 +597,8 @@ inline void RasterizerA3<N>::_renderImpl(Image& dst, uint32_t argb32) noexcept {
         else
           x1 = std::min<size_t>(_width, xOffset + kPixelsPerBitWord);
 
-        while (x0 < x1) {
-          cover += cell[x0].cover;
-          uint32_t mask = calcMask<NonZero>(cover - (cell[x0].area >> kA8Shift_2));
-          cell[x0].reset();
-
-          if (mask == 255)
-            dstPix[x0] = prgb32;
-          else
-            dstPix[x0] = PixelUtils::src(dstPix[x0], prgb32, uint32_t(mask));
-          x0++;
-        }
+        compositor.vmask<NonZero>(dstPix, x0, x1, cell, cover);
+        x0 = x1;
       }
 
       xOffset += kPixelsPerBitWord;
@@ -624,21 +606,9 @@ inline void RasterizerA3<N>::_renderImpl(Image& dst, uint32_t argb32) noexcept {
     } while (--nBits);
 
     if (x0 < _width) {
-      uint32_t mask = calcMask<NonZero>(cover);
-      if (mask) {
-        if (mask == 255) {
-          while (x0 < _width) {
-            dstPix[x0] = prgb32;
-            x0++;
-          }
-        }
-        else {
-          while (x0 < _width) {
-            dstPix[x0] = PixelUtils::src(dstPix[x0], prgb32, mask);
-            x0++;
-          }
-        }
-      }
+      uint32_t mask = CompositeUtils::calcMask<NonZero>(cover);
+      if (mask)
+        compositor.cmask(dstPix, x0, _width, mask);
     }
 
     dstLine += dstStride;

@@ -9,24 +9,25 @@
 struct BenchParams {
   int w;
   int h;
+  double factor;
 };
 
 int main(int argc, char* argv[]) {
   static const BenchParams benchParams[] = {
-    { 16  , 16   },
-    { 32  , 32   },
-    { 64  , 64   },
-    { 128 , 128  },
-    { 256 , 256  },
-    { 512 , 512  },
-    { 1024, 768  },
-    { 1920, 1080 },
-    { 3840, 2160 }
+    { 16  , 16   , 512.0 },
+    { 32  , 32   , 256.0 },
+    { 64  , 64   , 128.0 },
+    { 128 , 128  , 64.0  },
+    { 256 , 256  , 32.0  },
+    { 512 , 512  , 16.0  },
+    { 1024, 768  , 8.0   },
+    { 1920, 1080 , 4.0   },
+    { 3840, 2160 , 1.0   }
   };
 
-  uint32_t quantity = 400;
+  uint32_t baseQuantity = 100;
   uint32_t numRepeats = 3;
-  uint32_t numPoints = 10;
+  uint32_t numPoints = 5;
 
   for (uint32_t benchId = 0; benchId < uint32_t(ARRAY_SIZE(benchParams)); benchId++) {
     for (uint32_t rasterizerId = 0; rasterizerId < Rasterizer::kIdCount; rasterizerId++) {
@@ -42,6 +43,7 @@ int main(int argc, char* argv[]) {
 
       double dw = double(params.w - 1);
       double dh = double(params.h - 1);
+      uint32_t quantity = uint32_t(double(baseQuantity) * params.factor);
 
       Performance perf;
 
@@ -75,8 +77,9 @@ int main(int argc, char* argv[]) {
         return 1;
       }
 
-      printf("%-26s [%u ms]\n", fileName, perf.best);
+      printf("%-26s [q=%-6u] [%-4u ms]\n", fileName, quantity, perf.best);
     }
+    printf("\n");
   }
 
   return 0;

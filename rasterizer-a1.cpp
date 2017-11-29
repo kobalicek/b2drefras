@@ -1,3 +1,4 @@
+#include "./compositor.h"
 #include "./rasterizer.h"
 
 // ============================================================================
@@ -453,28 +454,20 @@ HorzAfter:
 
 template<bool NonZero>
 inline void RasterizerA1::_renderImpl(Image& dst, uint32_t argb32) noexcept {
-  uint8_t* dstLine = dst.data();
-  intptr_t stride = dst.stride();
-  uint32_t prgb32 = PixelUtils::premultiply(argb32);
-
   int w = _width;
   int h = _height;
 
+  uint8_t* dstLine = dst.data();
+  intptr_t stride = dst.stride();
+
+  Compositor compositor(argb32);
   for (int y = 0; y < h; y++, dstLine += stride) {
     uint32_t* dstPix = reinterpret_cast<uint32_t*>(dstLine);
-    const Cell* cell = &_cells[y * _cellStride];
+    Cell* cell = &_cells[y * _cellStride];
 
+    size_t x0 = 0;
     int cover = 0;
-    for (int x = 0; x < w; x++) {
-      cover += cell[x].cover;
-      uint32_t mask = calcMask<NonZero>(cover - (cell[x].area >> kA8Shift_2));
-      if (!mask) continue;
-
-      if (mask == 255)
-        dstPix[x] = prgb32;
-      else
-        dstPix[x] = PixelUtils::src(dstPix[x], prgb32, uint32_t(mask));
-    }
+    compositor.vmask<NonZero>(dstPix, x0, w, cell, cover);
   }
 }
 

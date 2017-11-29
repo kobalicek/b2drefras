@@ -1,3 +1,4 @@
+#include "./compositor.h"
 #include "./rasterizer.h"
 
 // ============================================================================
@@ -505,39 +506,31 @@ HorzAfter:
 
 template<bool NonZero>
 inline void RasterizerA2::_renderImpl(Image& dst, uint32_t argb32) noexcept {
-  uint8_t* dstLine = dst.data();
-  intptr_t stride = dst.stride();
-  uint32_t prgb32 = PixelUtils::premultiply(argb32);
-
   size_t y0 = size_t(_yBounds.start);
   size_t y1 = size_t(_yBounds.end);
 
-  dstLine += y0 * stride;
+  intptr_t stride = dst.stride();
+  uint8_t* dstLine = dst.data() + y0 * stride;
+
+  Compositor compositor(argb32);
   while (y0 <= y1) {
     uint32_t* dstPix = reinterpret_cast<uint32_t*>(dstLine);
-    const Cell* cell = &_cells[y0 * _cellStride];
+    Cell* cell = &_cells[y0 * _cellStride];
 
-    int x = _xBounds[y0].start;
-    int xEnd = std::min(_xBounds[y0].end + 1, _width);
-    int cover = 0;
+    if (!_xBounds[y0].empty()) {
+      int x0 = _xBounds[y0].start;
+      int x1 = std::min(_xBounds[y0].end + 1, _width);
+      _xBounds[y0].reset();
 
-    while (x < xEnd) {
-      cover += cell[x].cover;
-      uint32_t mask = calcMask<NonZero>(cover - (cell[x].area >> kA8Shift_2));
-
-      x++;
-      if (!mask)
-        continue;
-
-      if (mask == 255)
-        dstPix[x - 1] = prgb32;
-      else
-        dstPix[x - 1] = PixelUtils::src(dstPix[x - 1], prgb32, uint32_t(mask));
+      int cover = 0;
+      compositor.vmask<NonZero>(dstPix, size_t(x0), size_t(x1), cell, cover);
     }
 
     y0++;
     dstLine += stride;
   }
+
+  _yBounds.reset();
 }
 
 bool RasterizerA2::render(Image& dst, uint32_t argb32) noexcept {
