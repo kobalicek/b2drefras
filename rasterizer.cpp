@@ -1,31 +1,42 @@
 #include "./rasterizer.h"
 
+#include <cstring>
+
 // ============================================================================
 // [Rasterizer]
 // ============================================================================
 
-Rasterizer::Rasterizer() noexcept
-  : _width(0),
+Rasterizer::Rasterizer(Image& dst, uint32_t options) noexcept
+  : _dst(&dst),
+    _width(0),
     _height(0),
-    _nonZero(false) {}
+    _options(options),
+    _fillMode(kFillEvenOdd) {}
 Rasterizer::~Rasterizer() noexcept {}
+
+void Rasterizer::addOptionsToName() noexcept {
+  if (hasOption(kOptionSIMD))
+    std::strcat(_name, "_SIMD");
+}
 
 // ============================================================================
 // [Rasterizer - NewById]
 // ============================================================================
 
-Rasterizer* newRasterizerA1() noexcept;
-Rasterizer* newRasterizerA2() noexcept;
-Rasterizer* newRasterizerA3(uint32_t pixelsPerOneBit) noexcept;
+Rasterizer* newRasterizerA1(Image& dst, uint32_t options) noexcept;
+Rasterizer* newRasterizerA2(Image& dst, uint32_t options) noexcept;
+Rasterizer* newRasterizerA3(Image& dst, uint32_t options, uint32_t n) noexcept;
+Rasterizer* newRasterizerAGG(Image& dst, uint32_t options) noexcept;
 
-Rasterizer* Rasterizer::newById(uint32_t id) {
+Rasterizer* Rasterizer::newById(Image& dst, uint32_t id, uint32_t options) {
   switch (id) {
-    case kIdA1   : return newRasterizerA1();
-    case kIdA2   : return newRasterizerA2();
-    case kIdA3x4 : return newRasterizerA3(4);
-    case kIdA3x8 : return newRasterizerA3(8);
-    case kIdA3x16: return newRasterizerA3(16);
-    case kIdA3x32: return newRasterizerA3(32);
+    case kIdAGG  : return newRasterizerAGG(dst, options);
+    case kIdA1   : return newRasterizerA1(dst, options);
+    case kIdA2   : return newRasterizerA2(dst, options);
+    case kIdA3x4 : return newRasterizerA3(dst, options, 4);
+    case kIdA3x8 : return newRasterizerA3(dst, options, 8);
+    case kIdA3x16: return newRasterizerA3(dst, options, 16);
+    case kIdA3x32: return newRasterizerA3(dst, options, 32);
 
     default:
       return nullptr;
@@ -36,5 +47,6 @@ Rasterizer* Rasterizer::newById(uint32_t id) {
 // [CellRasterizer]
 // ============================================================================
 
-CellRasterizer::CellRasterizer() noexcept : Rasterizer() {}
+CellRasterizer::CellRasterizer(Image& dst, uint32_t options) noexcept
+  : Rasterizer(dst, options) {}
 CellRasterizer::~CellRasterizer() noexcept {}

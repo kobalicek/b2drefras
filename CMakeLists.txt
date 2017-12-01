@@ -1,8 +1,15 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.9)
 project(b2drefras CXX)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -msse4.1")
-set(SRCS
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest")
+endif()
+
+if("${CMAKE_CXX_COMPILER_ID}" MATCHES "^(GNU|Clang)$")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -msse4.1")
+endif()
+
+set(RAS_SRCS
   globals.h
   compositor.h
   performance.h
@@ -12,8 +19,169 @@ set(SRCS
   rasterizer-a1.cpp
   rasterizer-a2.cpp
   rasterizer-a3.cpp
+  rasterizer-agg.cpp
   simd.h
 )
 
-add_executable(render_bench render_bench.cpp ${SRCS})
-add_executable(render_cmd   render_cmd.cpp   ${SRCS})
+set(AGG_SRCS
+  3rdparty/agg/include/agg_alpha_mask_u8.h
+  3rdparty/agg/include/agg_arc.h
+  3rdparty/agg/include/agg_array.h
+  3rdparty/agg/include/agg_arrowhead.h
+  3rdparty/agg/include/agg_basics.h
+  3rdparty/agg/include/agg_bezier_arc.h
+  3rdparty/agg/include/agg_bitset_iterator.h
+  3rdparty/agg/include/agg_blur.h
+  3rdparty/agg/include/agg_bounding_rect.h
+  3rdparty/agg/include/agg_bspline.h
+  3rdparty/agg/include/agg_clip_liang_barsky.h
+  3rdparty/agg/include/agg_color_gray.h
+  3rdparty/agg/include/agg_color_rgba.h
+  3rdparty/agg/include/agg_config.h
+  3rdparty/agg/include/agg_conv_adaptor_vcgen.h
+  3rdparty/agg/include/agg_conv_adaptor_vpgen.h
+  3rdparty/agg/include/agg_conv_bspline.h
+  3rdparty/agg/include/agg_conv_clip_polygon.h
+  3rdparty/agg/include/agg_conv_clip_polyline.h
+  3rdparty/agg/include/agg_conv_close_polygon.h
+  3rdparty/agg/include/agg_conv_concat.h
+  3rdparty/agg/include/agg_conv_contour.h
+  3rdparty/agg/include/agg_conv_curve.h
+  3rdparty/agg/include/agg_conv_dash.h
+  3rdparty/agg/include/agg_conv_gpc.h
+  3rdparty/agg/include/agg_conv_marker_adaptor.h
+  3rdparty/agg/include/agg_conv_marker.h
+  3rdparty/agg/include/agg_conv_segmentator.h
+  3rdparty/agg/include/agg_conv_shorten_path.h
+  3rdparty/agg/include/agg_conv_smooth_poly1.h
+  3rdparty/agg/include/agg_conv_stroke.h
+  3rdparty/agg/include/agg_conv_transform.h
+  3rdparty/agg/include/agg_conv_unclose_polygon.h
+  3rdparty/agg/include/agg_curves.h
+  3rdparty/agg/include/agg_dda_line.h
+  3rdparty/agg/include/agg_ellipse_bresenham.h
+  3rdparty/agg/include/agg_ellipse.h
+  3rdparty/agg/include/agg_embedded_raster_fonts.h
+  3rdparty/agg/include/agg_font_cache_manager2.h
+  3rdparty/agg/include/agg_font_cache_manager.h
+  3rdparty/agg/include/agg_gamma_functions.h
+  3rdparty/agg/include/agg_gamma_lut.h
+  3rdparty/agg/include/agg_glyph_raster_bin.h
+  3rdparty/agg/include/agg_gradient_lut.h
+  3rdparty/agg/include/agg_gsv_text.h
+  3rdparty/agg/include/agg_image_accessors.h
+  3rdparty/agg/include/agg_image_filters.h
+  3rdparty/agg/include/agg_line_aa_basics.h
+  3rdparty/agg/include/agg_math.h
+  3rdparty/agg/include/agg_math_stroke.h
+  3rdparty/agg/include/agg_path_length.h
+  3rdparty/agg/include/agg_path_storage.h
+  3rdparty/agg/include/agg_path_storage_integer.h
+  3rdparty/agg/include/agg_pattern_filters_rgba.h
+  3rdparty/agg/include/agg_pixfmt_amask_adaptor.h
+  3rdparty/agg/include/agg_pixfmt_base.h
+  3rdparty/agg/include/agg_pixfmt_gray.h
+  3rdparty/agg/include/agg_pixfmt_rgba.h
+  3rdparty/agg/include/agg_pixfmt_rgb.h
+  3rdparty/agg/include/agg_pixfmt_rgb_packed.h
+  3rdparty/agg/include/agg_pixfmt_transposer.h
+  3rdparty/agg/include/agg_rasterizer_cells_aa.h
+  3rdparty/agg/include/agg_rasterizer_compound_aa.h
+  3rdparty/agg/include/agg_rasterizer_outline_aa.h
+  3rdparty/agg/include/agg_rasterizer_outline.h
+  3rdparty/agg/include/agg_rasterizer_scanline_aa.h
+  3rdparty/agg/include/agg_rasterizer_scanline_aa_nogamma.h
+  3rdparty/agg/include/agg_rasterizer_sl_clip.h
+  3rdparty/agg/include/agg_renderer_base.h
+  3rdparty/agg/include/agg_renderer_markers.h
+  3rdparty/agg/include/agg_renderer_mclip.h
+  3rdparty/agg/include/agg_renderer_outline_aa.h
+  3rdparty/agg/include/agg_renderer_outline_image.h
+  3rdparty/agg/include/agg_renderer_primitives.h
+  3rdparty/agg/include/agg_renderer_raster_text.h
+  3rdparty/agg/include/agg_renderer_scanline.h
+  3rdparty/agg/include/agg_rendering_buffer_dynarow.h
+  3rdparty/agg/include/agg_rendering_buffer.h
+  3rdparty/agg/include/agg_rounded_rect.h
+  3rdparty/agg/include/agg_scanline_bin.h
+  3rdparty/agg/include/agg_scanline_boolean_algebra.h
+  3rdparty/agg/include/agg_scanline_p.h
+  3rdparty/agg/include/agg_scanline_storage_aa.h
+  3rdparty/agg/include/agg_scanline_storage_bin.h
+  3rdparty/agg/include/agg_scanline_u.h
+  3rdparty/agg/include/agg_shorten_path.h
+  3rdparty/agg/include/agg_simul_eq.h
+  3rdparty/agg/include/agg_span_allocator.h
+  3rdparty/agg/include/agg_span_converter.h
+  3rdparty/agg/include/agg_span_gouraud_gray.h
+  3rdparty/agg/include/agg_span_gouraud.h
+  3rdparty/agg/include/agg_span_gouraud_rgba.h
+  3rdparty/agg/include/agg_span_gradient_alpha.h
+  3rdparty/agg/include/agg_span_gradient_contour.h
+  3rdparty/agg/include/agg_span_gradient.h
+  3rdparty/agg/include/agg_span_gradient_image.h
+  3rdparty/agg/include/agg_span_image_filter_gray.h
+  3rdparty/agg/include/agg_span_image_filter.h
+  3rdparty/agg/include/agg_span_image_filter_rgba.h
+  3rdparty/agg/include/agg_span_image_filter_rgb.h
+  3rdparty/agg/include/agg_span_interpolator_adaptor.h
+  3rdparty/agg/include/agg_span_interpolator_linear.h
+  3rdparty/agg/include/agg_span_interpolator_persp.h
+  3rdparty/agg/include/agg_span_interpolator_trans.h
+  3rdparty/agg/include/agg_span_pattern_gray.h
+  3rdparty/agg/include/agg_span_pattern_rgba.h
+  3rdparty/agg/include/agg_span_pattern_rgb.h
+  3rdparty/agg/include/agg_span_solid.h
+  3rdparty/agg/include/agg_span_subdiv_adaptor.h
+  3rdparty/agg/include/agg_trans_affine.h
+  3rdparty/agg/include/agg_trans_bilinear.h
+  3rdparty/agg/include/agg_trans_double_path.h
+  3rdparty/agg/include/agg_trans_perspective.h
+  3rdparty/agg/include/agg_trans_single_path.h
+  3rdparty/agg/include/agg_trans_viewport.h
+  3rdparty/agg/include/agg_trans_warp_magnifier.h
+  3rdparty/agg/include/agg_vcgen_bspline.h
+  3rdparty/agg/include/agg_vcgen_contour.h
+  3rdparty/agg/include/agg_vcgen_dash.h
+  3rdparty/agg/include/agg_vcgen_markers_term.h
+  3rdparty/agg/include/agg_vcgen_smooth_poly1.h
+  3rdparty/agg/include/agg_vcgen_stroke.h
+  3rdparty/agg/include/agg_vcgen_vertex_sequence.h
+  3rdparty/agg/include/agg_vertex_sequence.h
+  3rdparty/agg/include/agg_vpgen_clip_polygon.h
+  3rdparty/agg/include/agg_vpgen_clip_polyline.h
+  3rdparty/agg/include/agg_vpgen_segmentator.h
+  3rdparty/agg/include/util/agg_color_conv.h
+  3rdparty/agg/include/util/agg_color_conv_rgb16.h
+  3rdparty/agg/include/util/agg_color_conv_rgb8.h
+  3rdparty/agg/src/agg_arc.cpp
+  3rdparty/agg/src/agg_arrowhead.cpp
+  3rdparty/agg/src/agg_bezier_arc.cpp
+  3rdparty/agg/src/agg_bspline.cpp
+  3rdparty/agg/src/agg_color_rgba.cpp
+  3rdparty/agg/src/agg_curves.cpp
+  3rdparty/agg/src/agg_embedded_raster_fonts.cpp
+  3rdparty/agg/src/agg_gsv_text.cpp
+  3rdparty/agg/src/agg_image_filters.cpp
+  3rdparty/agg/src/agg_line_aa_basics.cpp
+  3rdparty/agg/src/agg_line_profile_aa.cpp
+  3rdparty/agg/src/agg_rounded_rect.cpp
+  3rdparty/agg/src/agg_sqrt_tables.cpp
+  3rdparty/agg/src/agg_trans_affine.cpp
+  3rdparty/agg/src/agg_trans_double_path.cpp
+  3rdparty/agg/src/agg_trans_single_path.cpp
+  3rdparty/agg/src/agg_trans_warp_magnifier.cpp
+  3rdparty/agg/src/agg_vcgen_bspline.cpp
+  3rdparty/agg/src/agg_vcgen_contour.cpp
+  3rdparty/agg/src/agg_vcgen_dash.cpp
+  3rdparty/agg/src/agg_vcgen_markers_term.cpp
+  3rdparty/agg/src/agg_vcgen_smooth_poly1.cpp
+  3rdparty/agg/src/agg_vcgen_stroke.cpp
+  3rdparty/agg/src/agg_vpgen_clip_polygon.cpp
+  3rdparty/agg/src/agg_vpgen_clip_polyline.cpp
+  3rdparty/agg/src/agg_vpgen_segmentator.cpp
+)
+
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/agg/include")
+add_executable(render_bench render_bench.cpp ${RAS_SRCS} ${AGG_SRCS})
+add_executable(render_cmd   render_cmd.cpp   ${RAS_SRCS})

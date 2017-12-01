@@ -78,10 +78,8 @@ int main(int argc, char* argv[]) {
   image.fillAll(0);
 
   // Rasterize the polygon.
-  Rasterizer* ras = Rasterizer::newById(Rasterizer::kIdA1);
-
-  ras->init(image.width(), image.height());
-  ras->_nonZero = nonZero;
+  Rasterizer* ras = Rasterizer::newById(image, Rasterizer::kIdA1, 0);
+  ras->setFillMode(nonZero ? Rasterizer::kFillNonZero : Rasterizer::kFillEvenOdd);
 
   double line[4];
   double start[2];
@@ -138,7 +136,7 @@ int main(int argc, char* argv[]) {
     ras->addPoly(poly, 2);
   }
 
-  ras->render(image, color);
+  ras->render(color);
   delete ras;
 
   if (!image.writeBmp(fileName)) {

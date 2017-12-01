@@ -1,6 +1,7 @@
 #ifndef _RASTERIZER_H
 #define _RASTERIZER_H
 
+#include "./compositor.h"
 #include "./globals.h"
 
 // ============================================================================
@@ -11,7 +12,8 @@ class Rasterizer {
 public:
   // Rasterizer ID.
   enum Id : uint32_t {
-    kIdA1 = 0,
+    kIdAGG = 0,
+    kIdA1,
     kIdA2,
     kIdA3x4,
     kIdA3x8,
@@ -19,28 +21,62 @@ public:
     kIdA3x32,
     kIdCount
   };
-  static Rasterizer* newById(uint32_t id);
 
-  Rasterizer() noexcept;
+  enum Options : uint32_t {
+    kOptionSIMD = 0x01
+  };
+
+  enum FillMode : uint32_t {
+    kFillEvenOdd = 0,
+    kFillNonZero = 1
+  };
+
+  static Rasterizer* newById(Image& dst, uint32_t id, uint32_t options);
+
+  Rasterizer(Image& dst, uint32_t options) noexcept;
   virtual ~Rasterizer() noexcept;
 
-  const char* name() const noexcept { return _name; }
-
-  virtual bool init(int w, int h) noexcept = 0;
-  virtual void reset() noexcept = 0;
-
-  virtual void clear() noexcept = 0;
-  virtual bool addPoly(const Point* poly, size_t count) noexcept = 0;
-  virtual bool render(Image& dst, uint32_t argb32) noexcept = 0;
-
   inline bool isInitialized() const noexcept { return _width != 0; }
+
+  const char* name() const noexcept { return _name; }
+  void addOptionsToName() noexcept;
+
   inline int width() const noexcept { return _width; }
   inline int height() const noexcept { return _height; }
 
-  char _name[16];
+  inline uint32_t options() const noexcept { return _options; }
+  inline bool hasOption(uint32_t option) const noexcept { return (_options & option) != 0; }
+
+  inline uint32_t fillMode() const noexcept { return _fillMode; }
+  inline void setFillMode(uint32_t fillMode) noexcept { _fillMode = fillMode; }
+
+  virtual void reset() noexcept = 0;
+  virtual void clear() noexcept = 0;
+  virtual bool addPoly(const Point* poly, size_t count) noexcept = 0;
+  virtual void render(uint32_t argb32) noexcept = 0;
+
+  template<class SELF>
+  static void doRender(SELF& self, uint32_t argb32) noexcept {
+    if (self.fillMode() == kFillNonZero) {
+      if (self.hasOption(kOptionSIMD))
+        self.template _renderImpl<CompositorSIMD, true>(argb32);
+      else
+        self.template _renderImpl<CompositorScalar, true>(argb32);
+    }
+    else {
+      if (self.hasOption(kOptionSIMD))
+        self.template _renderImpl<CompositorSIMD, false>(argb32);
+      else
+        self.template _renderImpl<CompositorScalar, false>(argb32);
+    }
+  }
+
+  Image* _dst;
+  char _name[32];
   int _width;
   int _height;
-  bool _nonZero;
+  uint32_t _options;
+  uint32_t _fillMode;
 };
 
 // ============================================================================
@@ -49,7 +85,7 @@ public:
 
 class CellRasterizer : public Rasterizer {
 public:
-  CellRasterizer() noexcept;
+  CellRasterizer(Image& dst, uint32_t options) noexcept;
   virtual ~CellRasterizer() noexcept;
 
   enum Alpha {

@@ -15,10 +15,11 @@ public:
   static constexpr uint32_t kPixelsPerOneBit = N;
   static constexpr uint32_t kPixelsPerBitWord = kPixelsPerOneBit * kBitWordBits;
 
-  RasterizerA3() noexcept;
+  RasterizerA3(Image& dst, uint32_t options) noexcept;
   virtual ~RasterizerA3() noexcept;
 
-  virtual bool init(int w, int h) noexcept override;
+  bool init(int w, int h) noexcept;
+
   virtual void reset() noexcept override;
   virtual void clear() noexcept override;
   virtual bool addPoly(const Point* poly, size_t count) noexcept override;
@@ -35,10 +36,10 @@ public:
     cell.area  += area;
   }
 
-  template<bool NonZero>
-  inline void _renderImpl(Image& dst, uint32_t argb32) noexcept;
+  template<class Compositor, bool NonZero>
+  inline void _renderImpl(uint32_t argb32) noexcept;
 
-  virtual bool render(Image& dst, uint32_t argb32) noexcept override;
+  virtual void render(uint32_t argb32) noexcept override;
 
   Bounds _yBounds;
 
@@ -54,14 +55,16 @@ public:
 // ============================================================================
 
 template<uint32_t N>
-RasterizerA3<N>::RasterizerA3() noexcept
-  : CellRasterizer(),
+RasterizerA3<N>::RasterizerA3(Image& dst, uint32_t options) noexcept
+  : CellRasterizer(dst, options),
     _yBounds { 0, 0 },
     _bitStride(0),
     _bits(nullptr),
     _cellStride(0),
     _cells(nullptr) {
   std::snprintf(_name, ARRAY_SIZE(_name), "A3x%u", kPixelsPerOneBit);
+  addOptionsToName();
+  init(dst.width(), dst.height());
 }
 
 template<uint32_t N>
@@ -555,10 +558,10 @@ HorzAfter:
 // ============================================================================
 
 template<uint32_t N>
-template<bool NonZero>
-inline void RasterizerA3<N>::_renderImpl(Image& dst, uint32_t argb32) noexcept {
-  uint8_t* dstLine = dst.data();
-  intptr_t dstStride = dst.stride();
+template<class Compositor, bool NonZero>
+inline void RasterizerA3<N>::_renderImpl(uint32_t argb32) noexcept {
+  uint8_t* dstLine = _dst->data();
+  intptr_t dstStride = _dst->stride();
 
   size_t y0 = size_t(_yBounds.start);
   size_t y1 = size_t(_yBounds.end);
@@ -597,7 +600,7 @@ inline void RasterizerA3<N>::_renderImpl(Image& dst, uint32_t argb32) noexcept {
         else
           x1 = std::min<size_t>(_width, xOffset + kPixelsPerBitWord);
 
-        compositor.vmask<NonZero>(dstPix, x0, x1, cell, cover);
+        compositor.template vmask<NonZero>(dstPix, x0, x1, cell, cover);
         x0 = x1;
       }
 
@@ -620,24 +623,20 @@ inline void RasterizerA3<N>::_renderImpl(Image& dst, uint32_t argb32) noexcept {
 }
 
 template<uint32_t N>
-bool RasterizerA3<N>::render(Image& dst, uint32_t argb32) noexcept {
-  if (_nonZero)
-    _renderImpl<true>(dst, argb32);
-  else
-    _renderImpl<false>(dst, argb32);
-  return true;
+void RasterizerA3<N>::render(uint32_t argb32) noexcept {
+  doRender(*this, argb32);
 }
 
 // ============================================================================
 // [RasterizerA3 - New]
 // ============================================================================
 
-Rasterizer* newRasterizerA3(uint32_t pixelsPerOneBit) noexcept {
-  switch (pixelsPerOneBit) {
-    case 4 : return new(std::nothrow) RasterizerA3<4>();
-    case 8 : return new(std::nothrow) RasterizerA3<8>();
-    case 16: return new(std::nothrow) RasterizerA3<16>();
-    case 32: return new(std::nothrow) RasterizerA3<32>();
+Rasterizer* newRasterizerA3(Image& dst, uint32_t options, uint32_t n) noexcept {
+  switch (n) {
+    case 4 : return new(std::nothrow) RasterizerA3<4>(dst, options);
+    case 8 : return new(std::nothrow) RasterizerA3<8>(dst, options);
+    case 16: return new(std::nothrow) RasterizerA3<16>(dst, options);
+    case 32: return new(std::nothrow) RasterizerA3<32>(dst, options);
     default:
       return nullptr;
   }

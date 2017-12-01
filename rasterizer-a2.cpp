@@ -7,10 +7,11 @@
 
 class RasterizerA2 : public CellRasterizer {
 public:
-  RasterizerA2() noexcept;
+  RasterizerA2(Image& dst, uint32_t options) noexcept;
   virtual ~RasterizerA2() noexcept;
 
-  virtual bool init(int w, int h) noexcept override;
+  bool init(int w, int h) noexcept;
+
   virtual void reset() noexcept override;
   virtual void clear() noexcept override;
   virtual bool addPoly(const Point* poly, size_t count) noexcept override;
@@ -27,10 +28,10 @@ public:
     cell.area  += area;
   }
 
-  template<bool NonZero>
-  inline void _renderImpl(Image& dst, uint32_t argb32) noexcept;
+  template<class Compositor, bool NonZero>
+  inline void _renderImpl(uint32_t argb32) noexcept;
 
-  virtual bool render(Image& dst, uint32_t argb32) noexcept override;
+  virtual void render(uint32_t argb32) noexcept override;
 
   size_t _cellStride;
   Cell* _cells;
@@ -42,13 +43,15 @@ public:
 // [RasterizerA2 - Construction / Destruction]
 // ============================================================================
 
-RasterizerA2::RasterizerA2() noexcept
-  : CellRasterizer(),
+RasterizerA2::RasterizerA2(Image& dst, uint32_t options) noexcept
+  : CellRasterizer(dst, options),
     _cellStride(0),
     _cells(nullptr),
     _xBounds(nullptr),
     _yBounds { 0, 0 } {
   std::snprintf(_name, ARRAY_SIZE(_name), "A2");
+  addOptionsToName();
+  init(dst.width(), dst.height());
 }
 
 RasterizerA2::~RasterizerA2() noexcept {
@@ -504,13 +507,13 @@ HorzAfter:
 // [RasterizerA2 - Render]
 // ============================================================================
 
-template<bool NonZero>
-inline void RasterizerA2::_renderImpl(Image& dst, uint32_t argb32) noexcept {
+template<class Compositor, bool NonZero>
+inline void RasterizerA2::_renderImpl(uint32_t argb32) noexcept {
   size_t y0 = size_t(_yBounds.start);
   size_t y1 = size_t(_yBounds.end);
 
-  intptr_t stride = dst.stride();
-  uint8_t* dstLine = dst.data() + y0 * stride;
+  intptr_t stride = _dst->stride();
+  uint8_t* dstLine = _dst->data() + y0 * stride;
 
   Compositor compositor(argb32);
   while (y0 <= y1) {
@@ -523,7 +526,7 @@ inline void RasterizerA2::_renderImpl(Image& dst, uint32_t argb32) noexcept {
       _xBounds[y0].reset();
 
       int cover = 0;
-      compositor.vmask<NonZero>(dstPix, size_t(x0), size_t(x1), cell, cover);
+      compositor.template vmask<NonZero>(dstPix, size_t(x0), size_t(x1), cell, cover);
     }
 
     y0++;
@@ -533,16 +536,14 @@ inline void RasterizerA2::_renderImpl(Image& dst, uint32_t argb32) noexcept {
   _yBounds.reset();
 }
 
-bool RasterizerA2::render(Image& dst, uint32_t argb32) noexcept {
-  if (_nonZero)
-    _renderImpl<true>(dst, argb32);
-  else
-    _renderImpl<false>(dst, argb32);
-  return true;
+void RasterizerA2::render(uint32_t argb32) noexcept {
+  doRender(*this, argb32);
 }
 
 // ============================================================================
 // [RasterizerA2 - New]
 // ============================================================================
 
-Rasterizer* newRasterizerA2() noexcept { return new(std::nothrow) RasterizerA2(); }
+Rasterizer* newRasterizerA2(Image& dst, uint32_t options) noexcept {
+  return new(std::nothrow) RasterizerA2(dst, options);
+}
